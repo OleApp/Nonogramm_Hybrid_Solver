@@ -74,9 +74,15 @@ def create_sample_puzzle(size: str = "small") -> dict:
             'name': 'Small Cross'
         }
     elif size == "medium":
+        # 5x5 Border pattern: außen komplett, innen nur Rand
+        # Zeile 0: [1,1,1,1,1] -> [5]
+        # Zeile 1: [1,0,0,0,1] -> [1,1] 
+        # Zeile 2: [1,0,0,0,1] -> [1,1]
+        # Zeile 3: [1,0,0,0,1] -> [1,1]
+        # Zeile 4: [1,1,1,1,1] -> [5]
         return {
-            'row_constraints': [[5], [2], [2], [2], [5]],
-            'col_constraints': [[5], [2], [2], [2], [5]],
+            'row_constraints': [[5], [1, 1], [1, 1], [1, 1], [5]],
+            'col_constraints': [[5], [1, 1], [1, 1], [1, 1], [5]],
             'name': 'Medium Border'
         }
     elif size == "large":
