@@ -123,7 +123,7 @@ class DatasetGenerator:
         return constraints
     
     def _line_to_constraint(self, line: np.ndarray) -> List[int]:
-        """Convert a solved line to its constraint"""
+        """Convert a solved line to its constraint (consecutive blocks)"""
         if not np.any(line):  # All zeros
             return []
         
@@ -131,13 +131,14 @@ class DatasetGenerator:
         current_block = 0
         
         for cell in line:
-            if cell == 1:
+            if cell == 1:  # Black/filled cell
                 current_block += 1
-            else:
-                if current_block > 0:
+            else:  # White/empty cell (0)
+                if current_block > 0:  # End of a block
                     blocks.append(current_block)
                     current_block = 0
         
+        # Don't forget the last block if line ends with filled cells
         if current_block > 0:
             blocks.append(current_block)
         
