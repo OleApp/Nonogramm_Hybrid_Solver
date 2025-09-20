@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from typing import List, Optional, Tuple
-from ..models.solver_state import SolverState
+from models.solver_state import SolverState
 
 class GridDisplayer:
     """Visualization utilities for nonogram grids"""

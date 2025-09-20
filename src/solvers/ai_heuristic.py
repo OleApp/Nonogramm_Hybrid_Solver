@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Tuple, Optional
-from ..models.solver_state import SolverState
-from .base_solver import BaseSolver
+from models.solver_state import SolverState
+from solvers.base_solver import BaseSolver
 
 class AIHeuristic(BaseSolver):
     """AI-based heuristic solver for nonograms"""

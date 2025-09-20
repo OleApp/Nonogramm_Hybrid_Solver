@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
+from typing import Optional, Callable, Any
 import numpy as np
-from typing import Callable, Any
-from ..models.solver_state import SolverState
+from models.solver_state import SolverState
 
 class BaseSolver(ABC):
     """Abstract base class for all nonogram solvers"""

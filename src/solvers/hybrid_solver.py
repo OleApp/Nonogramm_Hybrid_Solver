@@ -1,8 +1,8 @@
 import numpy as np
-from ..models.solver_state import SolverState
-from .base_solver import BaseSolver
-from .classical_solver import ClassicalSolver
-from .ai_heuristic import AIHeuristic
+from models.solver_state import SolverState
+from solvers.base_solver import BaseSolver
+from solvers.classical_solver import ClassicalSolver
+from solvers.ai_heuristic import AIHeuristic
 
 class HybridNonogramSolver(BaseSolver):
     def __init__(self, row_constraints, col_constraints):

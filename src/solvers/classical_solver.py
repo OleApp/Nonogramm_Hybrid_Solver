@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
-from src.models.solver_state import SolverState
-from .base_solver import BaseSolver
+from models.solver_state import SolverState
+from solvers.base_solver import BaseSolver
 
 class LineSolver:
 
@@ -41,7 +41,7 @@ class LineSolver:
         return True
 
     def solve_line(self, line: np.ndarray, constraint: List[int]) -> bool:
-        """Improved line solving with dynamic programming"""
+        """Solve a single line using constraint propagation"""
         if not constraint:  # Empty constraint
             changed = np.any(line == -1)
             line[line == -1] = 0
@@ -49,7 +49,7 @@ class LineSolver:
             
         possible_solutions = self._generate_valid_solutions(len(line), constraint)
         compatible_solutions = [sol for sol in possible_solutions 
-                            if self._is_compatible(line, sol)]
+                              if self._is_compatible(line, sol)]
         
         if not compatible_solutions:
             return False

@@ -1,257 +1,253 @@
 import numpy as np
-import random
-from typing import List, Tuple, Dict, Any, Optional
-from ..models.solver_state import SolverState
+from typing import List, Tuple, Optional
+from models.solver_state import SolverState
 
-class DatasetGenerator:
-    """Generate synthetic nonogram puzzles for training"""
+class NonogramValidator:
+    """Validation utilities for nonogram puzzles and solutions"""
     
-    def __init__(self, seed: Optional[int] = None):
-        if seed is not None:
-            random.seed(seed)
-            np.random.seed(seed)
+    @staticmethod
+    def is_valid_partial_solution(state: SolverState) -> bool:
+        """Check if current partial solution doesn't violate constraints"""
+        # Validate rows
+        for i, constraint in enumerate(state.row_constraints):
+            if not NonogramValidator._is_valid_partial_line(state.grid[i, :], constraint):
+                return False
+        
+        # Validate columns
+        for j, constraint in enumerate(state.col_constraints):
+            if not NonogramValidator._is_valid_partial_line(state.grid[:, j], constraint):
+                return False
+        
+        return True
     
-    def generate_puzzle(self, height: int, width: int, density: float = 0.5) -> Dict[str, Any]:
-        """Generate a single random nonogram puzzle"""
-        # Create random solution grid
-        solution = np.random.choice([0, 1], size=(height, width), p=[1-density, density])
+    @staticmethod
+    def is_complete_solution(state: SolverState) -> bool:
+        """Check if solution is complete and valid"""
+        # Must have no unknown cells
+        if np.any(state.grid == -1):
+            return False
         
-        # Generate constraints from solution
-        row_constraints = self._generate_line_constraints(solution, axis=1)
-        col_constraints = self._generate_line_constraints(solution, axis=0)
-        
-        return {
-            'solution': solution,
-            'row_constraints': row_constraints,
-            'col_constraints': col_constraints,
-            'size': (height, width),
-            'density': density
-        }
+        # Must satisfy all constraints
+        return NonogramValidator.is_valid_partial_solution(state)
     
-    def generate_dataset(self, 
-                        num_puzzles: int, 
-                        size_range: Tuple[int, int] = (5, 15),
-                        density_range: Tuple[float, float] = (0.3, 0.7)) -> List[Dict[str, Any]]:
-        """Generate a dataset of multiple puzzles"""
-        puzzles = []
+    @staticmethod
+    def _is_valid_partial_line(line: np.ndarray, constraint: List[int]) -> bool:
+        """Check if a partial line doesn't violate its constraint"""
+        if not constraint:  # Empty constraint - line should be all empty
+            return not np.any(line == 1)
         
-        for i in range(num_puzzles):
-            # Random size within range
-            height = random.randint(size_range[0], size_range[1])
-            width = random.randint(size_range[0], size_range[1])
-            
-            # Random density within range
-            density = random.uniform(density_range[0], density_range[1])
-            
-            puzzle = self.generate_puzzle(height, width, density)
-            puzzle['id'] = f"generated_{i:04d}"
-            puzzles.append(puzzle)
+        # Get current filled blocks
+        filled_blocks = NonogramValidator._get_filled_blocks(line)
+        unknown_positions = np.where(line == -1)[0]
         
-        return puzzles
+        # If no unknowns, check exact match
+        if len(unknown_positions) == 0:
+            return filled_blocks == constraint
+        
+        # With unknowns, check if current blocks could lead to valid solution
+        return NonogramValidator._could_be_valid(filled_blocks, constraint, len(unknown_positions))
     
-    def generate_structured_puzzle(self, 
-                                 height: int, 
-                                 width: int, 
-                                 pattern_type: str = "random") -> Dict[str, Any]:
-        """Generate puzzles with specific patterns"""
-        if pattern_type == "cross":
-            solution = self._generate_cross_pattern(height, width)
-        elif pattern_type == "checkerboard":
-            solution = self._generate_checkerboard_pattern(height, width)
-        elif pattern_type == "diagonal":
-            solution = self._generate_diagonal_pattern(height, width)
-        elif pattern_type == "border":
-            solution = self._generate_border_pattern(height, width)
-        elif pattern_type == "symmetric":
-            solution = self._generate_symmetric_pattern(height, width)
-        else:  # random
-            solution = np.random.choice([0, 1], size=(height, width), p=[0.5, 0.5])
-        
-        row_constraints = self._generate_line_constraints(solution, axis=1)
-        col_constraints = self._generate_line_constraints(solution, axis=0)
-        
-        return {
-            'solution': solution,
-            'row_constraints': row_constraints,
-            'col_constraints': col_constraints,
-            'size': (height, width),
-            'pattern': pattern_type
-        }
-    
-    def generate_difficulty_graded_dataset(self, puzzles_per_difficulty: int = 50) -> List[Dict[str, Any]]:
-        """Generate dataset with different difficulty levels"""
-        puzzles = []
-        
-        difficulty_configs = {
-            'easy': {'size_range': (5, 8), 'density_range': (0.4, 0.6), 'patterns': ['border', 'cross']},
-            'medium': {'size_range': (8, 12), 'density_range': (0.3, 0.7), 'patterns': ['symmetric', 'diagonal']},
-            'hard': {'size_range': (12, 20), 'density_range': (0.2, 0.8), 'patterns': ['random', 'checkerboard']},
-            'expert': {'size_range': (15, 25), 'density_range': (0.1, 0.9), 'patterns': ['random']}
-        }
-        
-        for difficulty, config in difficulty_configs.items():
-            for i in range(puzzles_per_difficulty):
-                height = random.randint(*config['size_range'])
-                width = random.randint(*config['size_range'])
-                pattern = random.choice(config['patterns'])
-                
-                if pattern == 'random':
-                    density = random.uniform(*config['density_range'])
-                    puzzle = self.generate_puzzle(height, width, density)
-                else:
-                    puzzle = self.generate_structured_puzzle(height, width, pattern)
-                
-                puzzle['id'] = f"{difficulty}_{i:03d}"
-                puzzle['difficulty'] = difficulty
-                puzzles.append(puzzle)
-        
-        return puzzles
-    
-    def _generate_line_constraints(self, grid: np.ndarray, axis: int) -> List[List[int]]:
-        """Generate constraints for all lines along specified axis"""
-        constraints = []
-        
-        if axis == 0:  # columns
-            lines = [grid[:, i] for i in range(grid.shape[1])]
-        else:  # rows
-            lines = [grid[i, :] for i in range(grid.shape[0])]
-        
-        for line in lines:
-            constraint = self._line_to_constraint(line)
-            constraints.append(constraint)
-        
-        return constraints
-    
-    def _line_to_constraint(self, line: np.ndarray) -> List[int]:
-        """Convert a solved line to its constraint"""
-        if not np.any(line):  # All zeros
-            return []
-        
+    @staticmethod
+    def _get_filled_blocks(line: np.ndarray) -> List[int]:
+        """Extract current filled block sizes from line"""
         blocks = []
         current_block = 0
+        in_unknown_region = False
         
         for cell in line:
-            if cell == 1:
+            if cell == 1:  # Filled
                 current_block += 1
-            else:
-                if current_block > 0:
+                in_unknown_region = False
+            elif cell == 0:  # Empty
+                if current_block > 0 and not in_unknown_region:
                     blocks.append(current_block)
                     current_block = 0
+                in_unknown_region = False
+            else:  # Unknown (-1)
+                in_unknown_region = True
         
-        if current_block > 0:
+        # Add final block if line ends with filled cells
+        if current_block > 0 and not in_unknown_region:
             blocks.append(current_block)
         
         return blocks
     
-    def _generate_cross_pattern(self, height: int, width: int) -> np.ndarray:
-        """Generate cross pattern"""
-        solution = np.zeros((height, width), dtype=int)
-        mid_row, mid_col = height // 2, width // 2
-        
-        # Horizontal line
-        solution[mid_row, :] = 1
-        # Vertical line
-        solution[:, mid_col] = 1
-        
-        return solution
-    
-    def _generate_checkerboard_pattern(self, height: int, width: int) -> np.ndarray:
-        """Generate checkerboard pattern"""
-        solution = np.zeros((height, width), dtype=int)
-        for i in range(height):
-            for j in range(width):
-                if (i + j) % 2 == 0:
-                    solution[i, j] = 1
-        return solution
-    
-    def _generate_diagonal_pattern(self, height: int, width: int) -> np.ndarray:
-        """Generate diagonal pattern"""
-        solution = np.zeros((height, width), dtype=int)
-        
-        # Main diagonal
-        for i in range(min(height, width)):
-            solution[i, i] = 1
-        
-        # Anti-diagonal
-        for i in range(min(height, width)):
-            solution[i, width - 1 - i] = 1
-        
-        return solution
-    
-    def _generate_border_pattern(self, height: int, width: int) -> np.ndarray:
-        """Generate border pattern"""
-        solution = np.zeros((height, width), dtype=int)
-        
-        # Top and bottom borders
-        solution[0, :] = 1
-        solution[height-1, :] = 1
-        
-        # Left and right borders
-        solution[:, 0] = 1
-        solution[:, width-1] = 1
-        
-        return solution
-    
-    def _generate_symmetric_pattern(self, height: int, width: int) -> np.ndarray:
-        """Generate horizontally symmetric pattern"""
-        solution = np.zeros((height, width), dtype=int)
-        
-        # Fill left half randomly
-        left_half = width // 2
-        solution[:, :left_half] = np.random.choice([0, 1], size=(height, left_half))
-        
-        # Mirror to right half
-        for i in range(height):
-            for j in range(left_half):
-                mirror_j = width - 1 - j
-                solution[i, mirror_j] = solution[i, j]
-        
-        return solution
-    
-    def validate_puzzle(self, puzzle: Dict[str, Any]) -> bool:
-        """Validate that a generated puzzle is solvable"""
-        try:
-            from ..solvers.classical_solver import ClassicalSolver
-            
-            # Create solver state
-            height, width = puzzle['size']
-            initial_grid = np.full((height, width), -1)
-            
-            state = SolverState(
-                grid=initial_grid,
-                row_constraints=puzzle['row_constraints'],
-                col_constraints=puzzle['col_constraints']
-            )
-            
-            # Try to solve
-            solver = ClassicalSolver(state)
-            solved = solver.solve(max_iterations=100)
-            
-            # Check if solution matches expected
-            if solved:
-                return np.array_equal(solver.state.grid, puzzle['solution'])
-            
+    @staticmethod
+    def _could_be_valid(current_blocks: List[int], constraint: List[int], unknowns: int) -> bool:
+        """Check if current partial blocks could lead to valid solution"""
+        if len(current_blocks) > len(constraint):
             return False
-        except ImportError:
-            # If solver not available, assume valid
-            return True
+        
+        # Check if current blocks match beginning of constraint
+        for i, block in enumerate(current_blocks):
+            if i >= len(constraint) or block > constraint[i]:
+                return False
+        
+        # Estimate if remaining unknowns could satisfy remaining constraint
+        remaining_constraint = constraint[len(current_blocks):]
+        min_needed = sum(remaining_constraint) + len(remaining_constraint) - 1
+        
+        return min_needed <= unknowns
     
-    def save_dataset(self, puzzles: List[Dict[str, Any]], filename: str):
-        """Save generated dataset to file"""
-        import json
+    @staticmethod
+    def validate_constraints(row_constraints: List[List[int]], 
+                           col_constraints: List[List[int]], 
+                           grid_size: Tuple[int, int]) -> bool:
+        """Validate that constraints are consistent with grid size"""
+        height, width = grid_size
         
-        # Convert numpy arrays to lists for JSON serialization
-        serializable_puzzles = []
-        for puzzle in puzzles:
-            serializable_puzzle = puzzle.copy()
-            serializable_puzzle['solution'] = puzzle['solution'].tolist()
-            serializable_puzzles.append(serializable_puzzle)
+        # Check row constraints
+        if len(row_constraints) != height:
+            return False
         
-        with open(filename, 'w') as f:
-            json.dump({
-                'metadata': {
-                    'total_puzzles': len(puzzles),
-                    'generator_version': '1.0'
-                },
-                'puzzles': serializable_puzzles
-            }, f, indent=2)
+        for i, constraint in enumerate(row_constraints):
+            min_width = sum(constraint) + len(constraint) - 1 if constraint else 0
+            if min_width > width:
+                return False
+        
+        # Check column constraints
+        if len(col_constraints) != width:
+            return False
+        
+        for j, constraint in enumerate(col_constraints):
+            min_height = sum(constraint) + len(constraint) - 1 if constraint else 0
+            if min_height > height:
+                return False
+        
+        return True
+    
+    @staticmethod
+    def get_constraint_violations(state: SolverState) -> List[Tuple[str, int, str]]:
+        """Get list of constraint violations with details"""
+        violations = []
+        
+        # Check rows
+        for i, constraint in enumerate(state.row_constraints):
+            line = state.grid[i, :]
+            if not NonogramValidator._is_valid_partial_line(line, constraint):
+                violations.append(("row", i, f"Row {i} violates constraint {constraint}"))
+        
+        # Check columns
+        for j, constraint in enumerate(state.col_constraints):
+            line = state.grid[:, j]
+            if not NonogramValidator._is_valid_partial_line(line, constraint):
+                violations.append(("col", j, f"Column {j} violates constraint {constraint}"))
+        
+        return violations
+    
+    @staticmethod
+    def calculate_consistency_score(state: SolverState) -> float:
+        """Calculate how consistent current state is (0.0 to 1.0)"""
+        total_lines = len(state.row_constraints) + len(state.col_constraints)
+        valid_lines = 0
+        
+        # Check rows
+        for i, constraint in enumerate(state.row_constraints):
+            if NonogramValidator._is_valid_partial_line(state.grid[i, :], constraint):
+                valid_lines += 1
+        
+        # Check columns
+        for j, constraint in enumerate(state.col_constraints):
+            if NonogramValidator._is_valid_partial_line(state.grid[:, j], constraint):
+                valid_lines += 1
+        
+        return valid_lines / total_lines if total_lines > 0 else 1.0
+    
+    @staticmethod
+    def find_definite_cells(line: np.ndarray, constraint: List[int]) -> np.ndarray:
+        """Find cells that must be filled/empty based on constraint"""
+        if not constraint:
+            # Empty constraint - all unknowns must be empty
+            definite = line.copy()
+            definite[line == -1] = 0
+            return definite
+        
+        # Generate all possible valid arrangements
+        possible_solutions = NonogramValidator._generate_line_solutions(len(line), constraint)
+        
+        # Filter solutions compatible with current line
+        compatible = [sol for sol in possible_solutions 
+                     if NonogramValidator._is_line_compatible(line, sol)]
+        
+        if not compatible:
+            return line  # No valid solutions found
+        
+        # Find definite cells (same in all compatible solutions)
+        definite = line.copy()
+        for i in range(len(line)):
+            if line[i] == -1:  # Only update unknown cells
+                values = {sol[i] for sol in compatible}
+                if len(values) == 1:
+                    definite[i] = values.pop()
+        
+        return definite
+    
+    @staticmethod
+    def _generate_line_solutions(length: int, constraint: List[int]) -> List[np.ndarray]:
+        """Generate all possible arrangements of blocks in line"""
+        if not constraint:
+            return [np.zeros(length, dtype=int)]
+        
+        solutions = []
+        min_length = sum(constraint) + len(constraint) - 1
+        
+        if min_length > length:
+            return []  # Impossible constraint
+        
+        def place_blocks(pos: int, block_idx: int, current: np.ndarray):
+            if block_idx >= len(constraint):
+                solutions.append(current.copy())
+                return
+            
+            block_size = constraint[block_idx]
+            max_start = length - sum(constraint[block_idx:]) - (len(constraint) - block_idx - 1)
+            
+            for start in range(pos, max_start + 1):
+                # Place block
+                new_current = current.copy()
+                new_current[start:start + block_size] = 1
+                
+                # Recurse for next block
+                next_pos = start + block_size + 1  # +1 for mandatory gap
+                place_blocks(next_pos, block_idx + 1, new_current)
+        
+        place_blocks(0, 0, np.zeros(length, dtype=int))
+        return solutions
+    
+    @staticmethod
+    def _is_line_compatible(partial_line: np.ndarray, solution: np.ndarray) -> bool:
+        """Check if solution is compatible with partial line"""
+        for i in range(len(partial_line)):
+            if partial_line[i] != -1 and partial_line[i] != solution[i]:
+                return False
+        return True
+    
+    @staticmethod
+    def estimate_difficulty(row_constraints: List[List[int]], 
+                          col_constraints: List[List[int]]) -> str:
+        """Estimate puzzle difficulty based on constraints"""
+        height, width = len(row_constraints), len(col_constraints)
+        total_cells = height * width
+        
+        # Calculate constraint complexity
+        total_blocks = sum(len(c) for c in row_constraints + col_constraints)
+        avg_blocks_per_line = total_blocks / (height + width)
+        
+        # Calculate density
+        total_filled = sum(sum(c) for c in row_constraints + col_constraints) / 2  # Average of row/col totals
+        density = total_filled / total_cells
+        
+        # Size factor
+        size_factor = min(height, width)
+        
+        # Difficulty scoring
+        complexity_score = avg_blocks_per_line * 2 + abs(density - 0.5) * 3 + size_factor * 0.5
+        
+        if complexity_score < 8:
+            return "easy"
+        elif complexity_score < 15:
+            return "medium"
+        elif complexity_score < 25:
+            return "hard"
+        else:
+            return "expert"

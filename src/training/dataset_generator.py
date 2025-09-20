@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from typing import List, Tuple, Dict, Any, Optional
-from ..models.solver_state import SolverState
+from models.solver_state import SolverState
 
 class DatasetGenerator:
     """Generate synthetic nonogram puzzles for training"""
@@ -211,7 +211,7 @@ class DatasetGenerator:
     def validate_puzzle(self, puzzle: Dict[str, Any]) -> bool:
         """Validate that a generated puzzle is solvable"""
         try:
-            from ..solvers.classical_solver import ClassicalSolver
+            from solvers.classical_solver import ClassicalSolver
             
             # Create solver state
             height, width = puzzle['size']

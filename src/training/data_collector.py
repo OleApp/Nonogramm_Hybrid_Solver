@@ -2,7 +2,7 @@ import json
 import numpy as np
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from ..models.solver_state import SolverState
+from models.solver_state import SolverState
 
 class TrainingDataCollector:
     def __init__(self):
