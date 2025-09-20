@@ -4,6 +4,42 @@ from src.models.solver_state import SolverState
 from .base_solver import BaseSolver
 
 class LineSolver:
+
+    def _generate_valid_solutions(self, length: int, constraint: List[int]) -> List[np.ndarray]:
+        """Generate all possible valid arrangements"""
+        if not constraint:
+            return [np.zeros(length, dtype=int)]
+        
+        solutions = []
+        min_length = sum(constraint) + len(constraint) - 1
+        
+        if min_length > length:
+            return []
+    
+        def place_blocks(pos: int, block_idx: int, current: np.ndarray):
+            if block_idx >= len(constraint):
+                solutions.append(current.copy())
+                return
+            
+            block_size = constraint[block_idx]
+            max_start = length - sum(constraint[block_idx:]) - (len(constraint) - block_idx - 1)
+            
+            for start in range(pos, max_start + 1):
+                new_current = current.copy()
+                new_current[start:start + block_size] = 1
+                next_pos = start + block_size + 1
+                place_blocks(next_pos, block_idx + 1, new_current)
+        
+        place_blocks(0, 0, np.zeros(length, dtype=int))
+        return solutions
+
+    def _is_compatible(self, line: np.ndarray, solution: np.ndarray) -> bool:
+        """Check compatibility between partial and complete solution"""
+        for i in range(len(line)):
+            if line[i] != -1 and line[i] != solution[i]:
+                return False
+        return True
+
     def solve_line(self, line: np.ndarray, constraint: List[int]) -> bool:
         """Improved line solving with dynamic programming"""
         if not constraint:  # Empty constraint
@@ -13,7 +49,7 @@ class LineSolver:
             
         possible_solutions = self._generate_valid_solutions(len(line), constraint)
         compatible_solutions = [sol for sol in possible_solutions 
-                              if self._is_compatible(line, sol)]
+                            if self._is_compatible(line, sol)]
         
         if not compatible_solutions:
             return False
