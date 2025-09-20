@@ -43,7 +43,7 @@ from training.data_export import DataExporter
 
 # Utility imports
 from utils.validation import NonogramValidator
-from visualisation.grid_display import GridDisplayer, quick_display
+from visualization.grid_display import GridDisplayer, quick_display
 
 def load_puzzle_from_file(filename: str) -> dict:
     """Load puzzle from JSON file"""
